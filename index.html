@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Lift Log" />
+  <title>Lift Log</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff;
+      --bg2: #f5f5f4;
+      --bg3: #eeece8;
+      --text: #1a1a18;
+      --text2: #6b6b67;
+      --text3: #9f9f9a;
+      --border: rgba(0,0,0,0.12);
+      --border2: rgba(0,0,0,0.22);
+      --radius: 10px;
+      --radius-lg: 14px;
+      --info-bg: #e6f1fb;
+      --info-text: #185fa5;
+      --amber-bg: #faeeda;
+      --amber-text: #633806;
+      --amber-border: #fac775;
+      --success-bg: #e1f5ee;
+      --success-text: #0f6e56;
+      --danger: #e24b4a;
+      --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1a;
+        --bg2: #252523;
+        --bg3: #2e2e2b;
+        --text: #f0ede8;
+        --text2: #9f9f9a;
+        --text3: #6b6b67;
+        --border: rgba(255,255,255,0.1);
+        --border2: rgba(255,255,255,0.2);
+        --info-bg: #0c2d4a;
+        --info-text: #85b7eb;
+        --amber-bg: #3a2500;
+        --amber-text: #fac775;
+        --amber-border: #854f0b;
+        --success-bg: #04342c;
+        --success-text: #5dcaa5;
+      }
+    }
+
+    html, body { height: 100%; background: var(--bg3); font-family: var(--font); color: var(--text); font-size: 16px; }
+
+    .shell { max-width: 480px; margin: 0 auto; min-height: 100vh; background: var(--bg3); padding-bottom: 80px; }
+
+    /* Header */
+    .header { background: var(--bg); border-bottom: 0.5px solid var(--border); padding: 14px 16px 12px; position: sticky; top: 0; z-index: 10; }
+    .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .app-title { font-size: 20px; font-weight: 600; color: var(--text); }
+    .header-meta { font-size: 12px; color: var(--text3); }
+
+    /* Sync bar */
+    .sync-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); }
+    .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #5dcaa5; flex-shrink: 0; transition: background 0.3s; }
+    .sync-dot.syncing { background: #fac775; animation: pulse 1s infinite; }
+    .sync-dot.error { background: var(--danger); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .sheet-link { margin-left: auto; color: var(--info-text); font-size: 11px; text-decoration: none; }
+    .sheet-link:hover { text-decoration: underline; }
+
+    /* Bottom nav */
+    .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: var(--bg); border-top: 0.5px solid var(--border); display: flex; z-index: 10; }
+    .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 4px 12px; background: none; border: none; cursor: pointer; color: var(--text3); font-size: 10px; font-weight: 500; transition: color 0.15s; font-family: var(--font); }
+    .nav-btn i { font-size: 22px; }
+    .nav-btn.active { color: var(--text); }
+
+    /* Content */
+    .content { padding: 14px 14px 0; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* Cards */
+    .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 12px; }
+    .section-label { font-size: 11px; font-weight: 600; color: var(--text3); letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 10px; }
+
+    /* Form elements */
+    .field-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+    .field-row label { font-size: 13px; color: var(--text2); min-width: 56px; }
+    .field-row input, .field-row select {
+      flex: 1; padding: 9px 11px; font-size: 15px; border: 0.5px solid var(--border2);
+      border-radius: var(--radius); background: var(--bg2); color: var(--text);
+      font-family: var(--font); -webkit-appearance: none; appearance: none;
+    }
+    .field-row input:focus, .field-row select:focus { outline: 2px solid var(--info-text); outline-offset: 1px; border-color: transparent; }
+    .field-row .unit { font-size: 13px; color: var(--text2); }
+
+    /* Buttons */
+    .btn-primary {
+      width: 100%; padding: 13px; font-size: 15px; font-weight: 600;
+      background: var(--text); color: var(--bg); border: none;
+      border-radius: var(--radius); cursor: pointer; margin-top: 6px;
+      font-family: var(--font); transition: opacity 0.15s;
+    }
+    .btn-primary:active { opacity: 0.8; }
+    .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-ghost {
+      padding: 9px 14px; font-size: 13px; border: 0.5px solid var(--border2);
+      background: transparent; color: var(--text2); border-radius: var(--radius);
+      cursor: pointer; font-family: var(--font);
+    }
+    .btn-ghost:hover { background: var(--bg2); }
+
+    /* Divider */
+    .divider { height: 0.5px; background: var(--border); margin: 12px 0; }
+
+    /* Set rows */
+    .set-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 0.5px solid var(--border); font-size: 14px; }
+    .set-row:last-child { border-bottom: none; }
+    .set-num { font-size: 12px; color: var(--text3); min-width: 26px; }
+    .set-val { font-weight: 600; color: var(--text); flex: 1; }
+    .set-note { font-size: 12px; color: var(--text3); max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .del-btn { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 20px; line-height: 1; padding: 2px 4px; }
+    .del-btn:hover { color: var(--danger); }
+
+    /* Session header */
+    .session-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .session-title { font-size: 16px; font-weight: 600; color: var(--text); }
+    .pr-badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; background: var(--amber-bg); color: var(--amber-text); font-weight: 600; border: 0.5px solid var(--amber-border); }
+
+    /* Banners */
+    .banner { display: none; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin-bottom: 12px; }
+    .banner.amber { background: var(--amber-bg); color: var(--amber-text); border: 0.5px solid var(--amber-border); }
+    .banner.visible { display: flex; }
+    .banner-close { margin-left: auto; background: none; border: none; cursor: pointer; color: inherit; font-size: 20px; line-height: 1; }
+
+    /* Stats */
+    .stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; margin-bottom: 14px; }
+    .stat-card { background: var(--bg2); border-radius: var(--radius); padding: 14px 16px; }
+    .stat-label { font-size: 11px; color: var(--text3); margin-bottom: 5px; font-weight: 500; }
+    .stat-val { font-size: 26px; font-weight: 600; color: var(--text); line-height: 1; }
+    .stat-unit { font-size: 13px; color: var(--text2); font-weight: 400; }
+
+    /* History */
+    .history-item { padding: 12px 0; border-bottom: 0.5px solid var(--border); }
+    .history-item:last-child { border-bottom: none; }
+    .hi-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+    .hi-name { font-size: 15px; font-weight: 600; color: var(--text); }
+    .hi-date { font-size: 12px; color: var(--text3); }
+    .hi-sub { font-size: 13px; color: var(--text2); }
+
+    /* Badges */
+    .badge { display: inline-block; font-size: 11px; padding: 3px 10px; border-radius: 20px; background: var(--info-bg); color: var(--info-text); font-weight: 600; }
+
+    /* Empty */
+    .empty { text-align: center; padding: 2.5rem 1rem; color: var(--text3); font-size: 14px; }
+    .empty i { font-size: 32px; display: block; margin-bottom: 10px; }
+
+    /* Volume chart */
+    .vol-bars { display: flex; align-items: flex-end; gap: 6px; height: 80px; }
+    .vol-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; height: 100%; }
+    .vol-bar-inner { flex: 1; display: flex; align-items: flex-end; width: 100%; }
+    .vol-bar { width: 100%; border-radius: 3px 3px 0 0; min-height: 2px; transition: height 0.3s; background: var(--border2); }
+    .vol-bar.today { background: var(--text); }
+    .vol-day { font-size: 10px; color: var(--text3); }
+    .vol-day.today { color: var(--text); font-weight: 600; }
+
+    /* Connect tab */
+    .connect-row { display: flex; align-items: center; gap: 12px; }
+    .connect-icon { font-size: 24px; color: var(--text2); flex-shrink: 0; }
+    .connect-info { flex: 1; }
+    .connect-title { font-size: 14px; font-weight: 600; color: var(--text); }
+    .connect-sub { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--text); color: var(--bg); padding: 10px 20px;
+      border-radius: var(--radius); font-size: 13px; font-weight: 600;
+      opacity: 0; transition: all 0.2s; z-index: 999; pointer-events: none;
+      white-space: nowrap; font-family: var(--font);
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<div class="shell">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="app-title">Lift Log</div>
+        <div class="header-meta" id="today-date"></div>
+      </div>
+      <span class="badge" id="streak-badge">0 day streak</span>
+    </div>
+    <div class="sync-bar">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span id="sync-label">Connecting…</span>
+      <a class="sheet-link" href="https://docs.google.com/spreadsheets/d/1-PHPFmgXiy09mXFFbjWnvE3NT_ZVjqvu5zQpyFxxYMY/edit" target="_blank">Open sheet ↗</a>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- LOG -->
+    <div id="tab-log" class="screen active">
+
+      <div id="autosave-banner" class="banner amber">
+        <i class="ti ti-alert-circle"></i>
+        <span>Session recovered — your sets are back</span>
+        <button class="banner-close" onclick="dismissBanner()">×</button>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Exercise</div>
+        <div class="field-row">
+          <select id="exercise-select">
+            <option value="">-- select --</option>
+            <optgroup label="Push">
+              <option>Bench Press</option>
+              <option>Overhead Press</option>
+              <option>Incline Bench Press</option>
+              <option>Dips</option>
+              <option>Push-ups</option>
+            </optgroup>
+            <optgroup label="Pull">
+              <option>Pull-ups</option>
+              <option>Barbell Row</option>
+              <option>Lat Pulldown</option>
+              <option>Face Pull</option>
+              <option>Deadlift</option>
+            </optgroup>
+            <optgroup label="Legs">
+              <option>Squat</option>
+              <option>Romanian Deadlift</option>
+              <option>Leg Press</option>
+              <option>Lunges</option>
+              <option>Calf Raises</option>
+            </optgroup>
+            <optgroup label="Cardio">
+              <option>Running</option>
+              <option>Cycling</option>
+              <option>Rowing</option>
+            </optgroup>
+            <option value="__custom__">+ Custom exercise…</option>
+          </select>
+        </div>
+        <div id="custom-row" class="field-row" style="display:none;">
+          <input id="custom-exercise" type="text" placeholder="Exercise name" />
+        </div>
+        <div class="divider"></div>
+        <div class="section-label">Set details</div>
+        <div class="field-row">
+          <label>Weight</label>
+          <input type="number" id="weight-input" placeholder="0" min="0" step="0.5" inputmode="decimal" />
+          <span class="unit">kg</span>
+        </div>
+        <div class="field-row">
+          <label>Reps</label>
+          <input type="number" id="reps-input" placeholder="0" min="1" inputmode="numeric" />
+        </div>
+        <div class="field-row">
+          <label>Note</label>
+          <input type="text" id="note-input" placeholder="optional" />
+        </div>
+        <button class="btn-primary" onclick="addSet()">
+          <i class="ti ti-plus"></i> Add set
+        </button>
+      </div>
+
+      <div id="session-card" class="card" style="display:none;">
+        <div class="session-header">
+          <span class="session-title" id="session-exercise-name"></span>
+          <span class="pr-badge" id="pr-indicator" style="display:none;">🏆 New PR</span>
+        </div>
+        <div id="sets-list"></div>
+        <div class="divider"></div>
+        <button class="btn-primary" id="save-btn" onclick="saveWorkout()">
+          <i class="ti ti-device-floppy"></i> Save to sheet
+        </button>
+      </div>
+
+    </div>
+
+    <!-- HISTORY -->
+    <div id="tab-history" class="screen">
+      <div class="card">
+        <div id="history-list"></div>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div id="tab-stats" class="screen">
+      <div class="stat-grid" id="stats-grid"></div>
+      <div class="section-label">Personal records</div>
+      <div class="card" id="pr-list"></div>
+      <div style="margin-top:14px;" class="section-label">Volume this week</div>
+      <div class="card" id="volume-chart"></div>
+    </div>
+
+    <!-- CONNECT -->
+    <div id="tab-connect" class="screen">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="connect-row">
+          <i class="ti ti-table connect-icon"></i>
+          <div class="connect-info">
+            <div class="connect-title">Google Sheets</div>
+            <div class="connect-sub" id="sheet-status-label">Checking connection…</div>
+          </div>
+          <a href="https://docs.google.com/spreadsheets/d/1-PHPFmgXiy09mXFFbjWnvE3NT_ZVjqvu5zQpyFxxYMY/edit" target="_blank" class="btn-ghost">Open ↗</a>
+        </div>
+        <div style="margin-top:12px; font-size:13px; color:var(--text2); line-height:1.6;">
+          Every saved workout appends rows to your sheet. Works across all devices — phone, tablet, laptop.
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:12px;">
+        <div class="connect-row">
+          <i class="ti ti-heartbeat connect-icon"></i>
+          <div class="connect-info">
+            <div class="connect-title">Fitbit / Google Fit</div>
+            <div class="connect-sub">Ready to wire up when your device arrives</div>
+          </div>
+          <button class="btn-ghost" onclick="showToast('Drop me a message when Fitbit arrives!')">Soon</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Local data</div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-ghost" style="flex:1;" onclick="exportJSON()">
+            <i class="ti ti-download"></i> Export JSON
+          </button>
+          <button class="btn-ghost" style="flex:1;" onclick="clearLocal()">
+            <i class="ti ti-trash"></i> Clear cache
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" onclick="switchTab('log')">
+      <i class="ti ti-plus"></i>Log
+    </button>
+    <button class="nav-btn" onclick="switchTab('history')">
+      <i class="ti ti-history"></i>History
+    </button>
+    <button class="nav-btn" onclick="switchTab('stats')">
+      <i class="ti ti-chart-bar"></i>Stats
+    </button>
+    <button class="nav-btn" onclick="switchTab('connect')">
+      <i class="ti ti-bluetooth"></i>Connect
+    </button>
+  </nav>
+</div>
+
+<script>
+const SHEET_ID = '1-PHPFmgXiy09mXFFbjWnvE3NT_ZVjqvu5zQpyFxxYMY';
+const SHEET_NAME = 'Sheet1';
+const LOCAL_KEY = 'ft_workouts_v2';
+const SESSION_KEY = 'ft_session_draft';
+const HEADERS = ['id','exercise','date','set_number','weight_kg','reps','note','total_sets','session_volume'];
+
+let currentSets = [];
+let currentExercise = '';
+let sheetReady = false;
+let toastTimer = null;
+
+// ── UI helpers ──────────────────────────────────────────────
+function showToast(msg, dur=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), dur);
+}
+
+function setSyncState(state, label) {
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  dot.className = 'sync-dot' + (state === 'syncing' ? ' syncing' : state === 'error' ? ' error' : '');
+  lbl.textContent = label;
+}
+
+function switchTab(name) {
+  const tabs = ['log','history','stats','connect'];
+  document.querySelectorAll('.screen').forEach((s,i) => {
+    s.classList.toggle('active', tabs[i] === name);
+  });
+  document.querySelectorAll('.nav-btn').forEach((b,i) => {
+    b.classList.toggle('active', tabs[i] === name);
+  });
+  if (name === 'history') renderHistory();
+  if (name === 'stats') renderStats();
+}
+
+// ── Sheets API ───────────────────────────────────────────────
+async function sheetsRequest(method, path, body) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}${path}`;
+  const opts = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || res.statusText);
+  }
+  return res.json();
+}
+
+async function initSheet() {
+  setSyncState('syncing', 'Connecting to Google Sheets…');
+  try {
+    const rows = await sheetsRequest('GET', `/values/${SHEET_NAME}!A1:A2`);
+    const vals = rows.values || [];
+    if (!vals.length || vals[0][0] !== 'id') {
+      await sheetsRequest('PUT', `/values/${SHEET_NAME}!A1:I1?valueInputOption=RAW`, { values: [HEADERS] });
+    }
+    sheetReady = true;
+    setSyncState('ok', 'Synced with Google Sheets');
+    document.getElementById('sheet-status-label').textContent = 'Connected — writes sync live';
+    await loadFromSheet();
+  } catch(e) {
+    setSyncState('error', 'Sheet offline — using local cache');
+    document.getElementById('sheet-status-label').textContent = 'Offline — cached locally';
+    loadLocal();
+  }
+}
+
+async function loadFromSheet() {
+  try {
+    const res = await sheetsRequest('GET', `/values/${SHEET_NAME}!A2:I5000`);
+    const rows = (res.values || []).filter(r => r.length >= 6);
+    const grouped = {};
+    rows.forEach(r => {
+      const id = r[0]; if (!id) return;
+      if (!grouped[id]) grouped[id] = { id, exercise: r[1], date: r[2], sets: [] };
+      grouped[id].sets.push({ weight: parseFloat(r[4])||0, reps: parseInt(r[5])||0, note: r[6]||'' });
+    });
+    const workouts = Object.values(grouped).sort((a,b) => new Date(b.date)-new Date(a.date));
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(workouts));
+    renderHistory(); renderStats();
+  } catch(e) { loadLocal(); }
+}
+
+function loadLocal() { renderHistory(); renderStats(); }
+
+// ── Data helpers ─────────────────────────────────────────────
+function getWorkouts() {
+  try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]'); } catch { return []; }
+}
+
+function getPersonalRecord(exercise) {
+  const w = getWorkouts().filter(x => x.exercise === exercise);
+  if (!w.length) return 0;
+  return Math.max(...w.flatMap(x => x.sets.map(s => s.weight || 0)));
+}
+
+// ── Auto-save draft ──────────────────────────────────────────
+function autoSaveDraft() {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ exercise: currentExercise, sets: currentSets, ts: Date.now() }));
+}
+function clearDraft() { localStorage.removeItem(SESSION_KEY); }
+
+function restoreDraft() {
+  try {
+    const draft = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    if (!draft?.sets?.length) return;
+    if (Date.now() - (draft.ts||0) > 6 * 3600000) { clearDraft(); return; }
+    currentExercise = draft.exercise;
+    currentSets = draft.sets;
+    document.getElementById('autosave-banner').classList.add('visible');
+    renderCurrentSets();
+  } catch {}
+}
+
+function dismissBanner() {
+  document.getElementById('autosave-banner').classList.remove('visible');
+}
+
+// ── Logging ──────────────────────────────────────────────────
+document.getElementById('exercise-select').addEventListener('change', function() {
+  document.getElementById('custom-row').style.display = this.value === '__custom__' ? 'flex' : 'none';
+});
+
+function getExerciseName() {
+  const sel = document.getElementById('exercise-select').value;
+  return sel === '__custom__' ? document.getElementById('custom-exercise').value.trim() : sel;
+}
+
+function addSet() {
+  const ex = getExerciseName();
+  if (!ex) { showToast('Pick an exercise first'); return; }
+  const weight = parseFloat(document.getElementById('weight-input').value);
+  const reps = parseInt(document.getElementById('reps-input').value);
+  if (!reps || reps < 1) { showToast('Enter reps'); return; }
+  if (currentSets.length > 0 && currentExercise !== ex) { showToast('Save current exercise first'); return; }
+  if (!currentSets.length) currentExercise = ex;
+  const note = document.getElementById('note-input').value.trim();
+  currentSets.push({ weight: isNaN(weight) ? 0 : weight, reps, note });
+  document.getElementById('note-input').value = '';
+  autoSaveDraft();
+  renderCurrentSets();
+  showToast('Set added — auto-saved ✓');
+}
+
+function removeSet(i) {
+  currentSets.splice(i, 1);
+  if (!currentSets.length) { currentExercise = ''; clearDraft(); }
+  else autoSaveDraft();
+  renderCurrentSets();
+}
+
+function renderCurrentSets() {
+  const card = document.getElementById('session-card');
+  const list = document.getElementById('sets-list');
+  const nameEl = document.getElementById('session-exercise-name');
+  if (!currentSets.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  nameEl.textContent = currentExercise;
+  const pr = getPersonalRecord(currentExercise);
+  const maxW = Math.max(...currentSets.map(s => s.weight || 0));
+  document.getElementById('pr-indicator').style.display = (maxW > 0 && maxW > pr) ? 'inline' : 'none';
+  list.innerHTML = currentSets.map((s, i) => `
+    <div class="set-row">
+      <span class="set-num">S${i+1}</span>
+      <span class="set-val">${s.weight > 0 ? s.weight + ' kg' : 'BW'} × ${s.reps} reps</span>
+      <span class="set-note">${s.note || ''}</span>
+      <button class="del-btn" onclick="removeSet(${i})" aria-label="Remove set ${i+1}">×</button>
+    </div>`).join('');
+}
+
+async function saveWorkout() {
+  if (!currentSets.length) return;
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const workout = { id: Date.now().toString(), exercise: currentExercise, sets: [...currentSets], date: new Date().toISOString() };
+  const workouts = getWorkouts();
+  workouts.unshift(workout);
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(workouts));
+  clearDraft();
+
+  if (sheetReady) {
+    setSyncState('syncing', 'Writing to sheet…');
+    try {
+      const totalVol = workout.sets.reduce((a,s) => a + (s.weight||0) * s.reps, 0);
+      const rows = workout.sets.map((s, i) => [
+        workout.id, workout.exercise, workout.date,
+        i+1, s.weight||0, s.reps, s.note||'',
+        workout.sets.length, Math.round(totalVol)
+      ]);
+      await sheetsRequest('POST', `/values/${SHEET_NAME}!A1:I1:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, { values: rows });
+      setSyncState('ok', 'Synced — ' + new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}));
+      showToast('Saved to Google Sheets ✓');
+    } catch(e) {
+      setSyncState('error', 'Sheet write failed — saved locally');
+      showToast('Saved locally (sheet offline)');
+    }
+  } else {
+    showToast('Saved locally ✓');
+  }
+
+  currentSets = []; currentExercise = '';
+  renderCurrentSets();
+  document.getElementById('exercise-select').value = '';
+  document.getElementById('weight-input').value = '';
+  document.getElementById('reps-input').value = '';
+  btn.disabled = false;
+  btn.innerHTML = '<i class="ti ti-device-floppy"></i> Save to sheet';
+  renderHistory(); renderStats();
+}
+
+// ── Render history ───────────────────────────────────────────
+function renderHistory() {
+  const workouts = getWorkouts();
+  const list = document.getElementById('history-list');
+  if (!workouts.length) {
+    list.innerHTML = '<div class="empty"><i class="ti ti-barbell"></i>No workouts yet.<br>Log your first set above.</div>';
+    return;
+  }
+  list.innerHTML = workouts.slice(0, 50).map(w => {
+    const d = new Date(w.date);
+    const ds = d.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
+    const ts = d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+    const maxW = Math.max(...w.sets.map(s => s.weight||0));
+    const totalR = w.sets.reduce((a,s) => a+s.reps, 0);
+    return `<div class="history-item">
+      <div class="hi-top"><span class="hi-name">${w.exercise}</span><span class="hi-date">${ds} ${ts}</span></div>
+      <div class="hi-sub">${w.sets.length} sets · ${totalR} total reps${maxW > 0 ? ' · top ' + maxW + ' kg' : ''}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Render stats ─────────────────────────────────────────────
+function renderStats() {
+  const workouts = getWorkouts();
+  const grid = document.getElementById('stats-grid');
+  const prList = document.getElementById('pr-list');
+  const volChart = document.getElementById('volume-chart');
+
+  const totalSets = workouts.reduce((a,w) => a + w.sets.length, 0);
+  const totalReps = workouts.reduce((a,w) => a + w.sets.reduce((b,s) => b+s.reps, 0), 0);
+  const totalVol  = workouts.reduce((a,w) => a + w.sets.reduce((b,s) => b+(s.weight||0)*s.reps, 0), 0);
+
+  grid.innerHTML = `
+    <div class="stat-card"><div class="stat-label">Workouts</div><div class="stat-val">${workouts.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Total sets</div><div class="stat-val">${totalSets}</div></div>
+    <div class="stat-card"><div class="stat-label">Total reps</div><div class="stat-val">${totalReps.toLocaleString()}</div></div>
+    <div class="stat-card"><div class="stat-label">Volume</div><div class="stat-val">${(totalVol/1000).toFixed(1)}<span class="stat-unit"> t</span></div></div>`;
+
+  const exMap = {};
+  workouts.forEach(w => {
+    const max = Math.max(...w.sets.map(s => s.weight||0));
+    if (!(w.exercise in exMap) || max > exMap[w.exercise]) exMap[w.exercise] = max;
+  });
+  const prs = Object.entries(exMap).sort((a,b) => b[1]-a[1]).slice(0,8);
+  prList.innerHTML = prs.length ? prs.map(([ex,kg]) => `
+    <div class="set-row">
+      <span class="set-val" style="font-size:14px;">${ex}</span>
+      <span style="font-size:15px; font-weight:600; color:var(--text);">${kg > 0 ? kg+' kg' : 'BW'}</span>
+    </div>`).join('') : '<div class="empty" style="padding:1rem;">Log workouts to see PRs</div>';
+
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const now = new Date();
+  const weekVol = Array(7).fill(0);
+  const wd = (now.getDay()+6)%7;
+  workouts.forEach(w => {
+    const diff = Math.floor((now - new Date(w.date)) / 86400000);
+    if (diff < 7) {
+      const idx = (wd - diff + 7) % 7;
+      weekVol[idx] += w.sets.reduce((a,s) => a+(s.weight||0)*s.reps, 0);
+    }
+  });
+  const maxVol = Math.max(...weekVol, 1);
+  volChart.innerHTML = `<div class="vol-bars">${weekVol.map((v,i) => {
+    const pct = Math.round((v/maxVol)*100);
+    const today = i===wd;
+    return `<div class="vol-bar-wrap">
+      <div class="vol-bar-inner">
+        <div class="vol-bar${today?' today':''}" style="height:${Math.max(pct, v>0?8:2)}%;"></div>
+      </div>
+      <div class="vol-day${today?' today':''}">${days[i]}</div>
+    </div>`;
+  }).join('')}</div>`;
+
+  const dateSet = new Set(workouts.map(w => new Date(w.date).toDateString()));
+  let streak = 0;
+  for (let i=0; i<60; i++) {
+    const d = new Date(); d.setDate(d.getDate()-i);
+    if (dateSet.has(d.toDateString())) streak++;
+    else if (i>0) break;
+  }
+  document.getElementById('streak-badge').textContent = streak + ' day streak';
+}
+
+// ── Export / clear ───────────────────────────────────────────
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(getWorkouts(), null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'workouts.json'; a.click();
+  showToast('Exported!');
+}
+
+function clearLocal() {
+  if (confirm('Clear local cache? Your Google Sheet data stays safe.')) {
+    localStorage.removeItem(LOCAL_KEY);
+    renderHistory(); renderStats();
+    showToast('Local cache cleared');
+  }
+}
+
+// ── Init ─────────────────────────────────────────────────────
+document.getElementById('today-date').textContent = new Date().toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'});
+restoreDraft();
+initSheet();
+</script>
+</body>
+</html>
