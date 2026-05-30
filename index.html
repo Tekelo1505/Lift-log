@@ -925,17 +925,22 @@ function renderWeightTab() {
 
 async function editWeightEntry(date) {
   const log = getWeightLog();
-  const entry = log.find(e => e.date === date);
-  if (!entry) return;
+  const idx = log.findIndex(e => e.date === date);
+  if (idx === -1) return;
+  const entry = log[idx];
   const newVal = prompt('Edit weight (kg):', entry.weight);
   if (newVal === null || !newVal.trim()) return;
   const parsed = parseFloat(newVal);
   if (!parsed || parsed < 20 || parsed > 300) { showToast('Invalid weight'); return; }
-  entry.weight = parsed;
+  log[idx].weight = parsed;
   localStorage.setItem(WEIGHT_KEY, JSON.stringify(log));
-  if (sheetReady && entry.id) {
+  if (sheetReady) {
     try {
-      await supaRequest('PATCH', '/rest/v1/weight_log?id=eq.'+entry.id, { weight_kg: parsed });
+      if (entry.id) {
+        await supaRequest('PATCH', '/rest/v1/weight_log?id=eq.'+entry.id, { weight_kg: parsed });
+      } else {
+        await supaRequest('PATCH', '/rest/v1/weight_log?date=eq.'+encodeURIComponent(date), { weight_kg: parsed });
+      }
       showToast('Weight updated ✓');
     } catch(e) { showToast('Updated locally'); }
   } else { showToast('Updated locally ✓'); }
@@ -948,11 +953,15 @@ async function deleteWeightEntry(date) {
   const entry = log.find(e => e.date === date);
   const newLog = log.filter(e => e.date !== date);
   localStorage.setItem(WEIGHT_KEY, JSON.stringify(newLog));
-  if (sheetReady && entry && entry.id) {
+  if (sheetReady) {
     try {
-      await supaRequest('DELETE', '/rest/v1/weight_log?id=eq.'+entry.id);
+      if (entry && entry.id) {
+        await supaRequest('DELETE', '/rest/v1/weight_log?id=eq.'+entry.id);
+      } else {
+        await supaRequest('DELETE', '/rest/v1/weight_log?date=eq.'+encodeURIComponent(date));
+      }
       showToast('Entry deleted ✓');
-    } catch(e) { showToast('Deleted locally'); }
+    } catch(e) { showToast('Deleted locally — check connection'); }
   } else { showToast('Deleted locally ✓'); }
   renderWeightTab();
 }
