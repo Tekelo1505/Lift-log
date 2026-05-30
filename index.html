@@ -440,14 +440,14 @@ function setSyncState(state, label) {
 }
 
 // ── Supabase API ─────────────────────────────────────────────
-async function supaRequest(method, path, body) {
+async function supaRequest(method, path, body, returnData=false) {
   const res = await fetch(SUPA_URL + path, {
     method,
     headers: {
       'Content-Type': 'application/json',
       'apikey': SUPA_KEY,
       'Authorization': 'Bearer ' + SUPA_KEY,
-      'Prefer': method === 'POST' ? 'return=minimal' : ''
+      'Prefer': (method === 'POST' && returnData) ? 'return=representation' : method === 'POST' ? 'return=minimal' : ''
     },
     body: body ? JSON.stringify(body) : undefined
   });
@@ -467,6 +467,7 @@ async function initSheet() {
     sheetReady = true;
     setSyncState('ok', 'Synced with Supabase');
     document.getElementById('sheet-status-label').textContent = 'Connected — writes sync live';
+    await loadCustomExercises();
     await loadFromSheet();
   } catch(e) {
     setSyncState('error', 'Database offline — using local cache');
@@ -493,7 +494,7 @@ async function loadFromSheet() {
   try {
     const entries = await supaRequest('GET', '/rest/v1/weight_log?select=*&order=date.desc&limit=500');
     if (entries && entries.length) {
-      localStorage.setItem(WEIGHT_KEY, JSON.stringify(entries.map(e => ({ date: e.date, weight: e.weight_kg }))));
+      localStorage.setItem(WEIGHT_KEY, JSON.stringify(entries.map(e => ({ id: e.id, date: e.date, weight: e.weight_kg }))));
     }
   } catch(e) {}
 
@@ -599,7 +600,17 @@ function getCustomExercises() {
 function saveCustomExercises(list) {
   localStorage.setItem(CUSTOM_KEY, JSON.stringify(list));
 }
-function maybeAddCustomExercise(name) {
+async function loadCustomExercises() {
+  if (!sheetReady) return;
+  try {
+    const rows = await supaRequest('GET', '/rest/v1/custom_exercises?select=*&order=name.asc');
+    if (rows && rows.length) {
+      saveCustomExercises(rows.map(r => r.name));
+      renderCustomExerciseList();
+    }
+  } catch(e) {}
+}
+async function maybeAddCustomExercise(name) {
   const allPreset = Object.values(SUGGESTED).flat().map(e=>e.toLowerCase());
   if (allPreset.includes(name.toLowerCase())) return;
   const custom = getCustomExercises();
@@ -607,31 +618,41 @@ function maybeAddCustomExercise(name) {
     custom.push(name);
     saveCustomExercises(custom);
     renderCustomExerciseList();
+    if (sheetReady) {
+      try { await supaRequest('POST', '/rest/v1/custom_exercises', { name }); } catch(e) {}
+    }
   }
 }
-function addCustomExerciseManually() {
+async function addCustomExerciseManually() {
   const input = document.getElementById('new-custom-exercise');
   const name = input.value.trim();
   if (!name) return;
-  maybeAddCustomExercise(name);
+  await maybeAddCustomExercise(name);
   input.value = '';
   showToast('Exercise added ✓');
 }
-function deleteCustomExercise(i) {
-  const custom = getCustomExercises();
-  custom.splice(i,1);
+async function deleteCustomExercise(name) {
+  const custom = getCustomExercises().filter(e => e !== name);
   saveCustomExercises(custom);
   renderCustomExerciseList();
+  if (sheetReady) {
+    try { await supaRequest('DELETE', '/rest/v1/custom_exercises?name=eq.'+encodeURIComponent(name)); } catch(e) {}
+  }
 }
-function renameCustomExercise(i) {
-  const custom = getCustomExercises();
-  const current = custom[i];
-  const newName = prompt('Rename exercise:', current);
-  if (!newName || !newName.trim() || newName.trim()===current) return;
-  custom[i] = newName.trim();
+async function renameCustomExercise(oldName) {
+  const newName = prompt('Rename exercise:', oldName);
+  if (!newName || !newName.trim() || newName.trim()===oldName) return;
+  const trimmed = newName.trim();
+  const custom = getCustomExercises().map(e => e === oldName ? trimmed : e);
   saveCustomExercises(custom);
   renderCustomExerciseList();
-  showToast('Renamed ✓');
+  if (sheetReady) {
+    try {
+      await supaRequest('DELETE', '/rest/v1/custom_exercises?name=eq.'+encodeURIComponent(oldName));
+      await supaRequest('POST', '/rest/v1/custom_exercises', { name: trimmed });
+      showToast('Renamed ✓');
+    } catch(e) { showToast('Renamed locally'); }
+  } else { showToast('Renamed ✓'); }
 }
 function renderCustomExerciseList() {
   const el = document.getElementById('custom-exercise-list');
@@ -641,12 +662,14 @@ function renderCustomExerciseList() {
     el.innerHTML = '<div style="font-size:13px;color:var(--text3);padding:4px 0;">No custom exercises yet — they appear here automatically when you type a new one.</div>';
     return;
   }
-  el.innerHTML = custom.map((e,i)=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);">
+  el.innerHTML = custom.map(e => {
+    const safe = e.replace(/'/g,"\\'");
+    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);">
       <span style="flex:1;font-size:14px;color:var(--text);">${e}</span>
-      <button class="btn-ghost" style="padding:5px 10px;font-size:12px;" onclick="renameCustomExercise(${i})"><i class="ti ti-pencil"></i></button>
-      <button class="del-btn" onclick="deleteCustomExercise(${i})">×</button>
-    </div>`).join('');
+      <button class="btn-ghost" style="padding:5px 10px;font-size:12px;" onclick="renameCustomExercise('${safe}')"><i class="ti ti-pencil"></i></button>
+      <button class="del-btn" onclick="deleteCustomExercise('${safe}')">×</button>
+    </div>`;
+  }).join('');
 }
 
 // ── Autocomplete ─────────────────────────────────────────────
@@ -847,18 +870,20 @@ async function saveWorkout() {
 async function logWeight() {
   const val = parseFloat(document.getElementById('bw-input').value);
   if (!val || val < 20 || val > 300) { showToast('Enter a valid weight'); return; }
-  const entry = { date: new Date().toISOString(), weight: val };
+  const entry = { id: null, date: new Date().toISOString(), weight: val };
   const log = getWeightLog();
-  log.push(entry);
-  localStorage.setItem(WEIGHT_KEY, JSON.stringify(log));
-  document.getElementById('bw-input').value = '';
 
   if (sheetReady) {
     try {
-      await supaRequest('POST', '/rest/v1/weight_log', { date: entry.date, weight_kg: val });
+      const res = await supaRequest('POST', '/rest/v1/weight_log?select=id', { date: entry.date, weight_kg: val }, true);
+      if (res && res[0] && res[0].id) entry.id = res[0].id;
       showToast('Weight logged ✓');
     } catch(e) { showToast('Saved locally'); }
   } else { showToast('Weight logged locally ✓'); }
+
+  log.push(entry);
+  localStorage.setItem(WEIGHT_KEY, JSON.stringify(log));
+  document.getElementById('bw-input').value = '';
   renderWeightTab();
 }
 
@@ -881,18 +906,55 @@ function renderWeightTab() {
     let delta = '';
     if (prev) {
       const diff = (e.weight - prev.weight).toFixed(1);
-      const cls = diff > 0 ? 'delta-up' : 'delta-down';
-      const sign = diff > 0 ? '+' : '';
+      const cls = parseFloat(diff) > 0 ? 'delta-up' : 'delta-down';
+      const sign = parseFloat(diff) > 0 ? '+' : '';
       delta = `<span class="weight-delta ${cls}">${sign}${diff}</span>`;
     }
+    const safeDate = e.date.replace(/'/g,"\\'");
     return `<div class="weight-log-item">
       <span class="weight-val">${e.weight} kg</span>
       ${delta}
       <div class="weight-date">${ds}<br>${ts}</div>
+      <button class="btn-ghost" style="padding:4px 8px;font-size:12px;" onclick="editWeightEntry('${safeDate}')"><i class="ti ti-pencil"></i></button>
+      <button class="del-btn" onclick="deleteWeightEntry('${safeDate}')">×</button>
     </div>`;
   }).join('');
 
   drawWeightChart(log);
+}
+
+async function editWeightEntry(date) {
+  const log = getWeightLog();
+  const entry = log.find(e => e.date === date);
+  if (!entry) return;
+  const newVal = prompt('Edit weight (kg):', entry.weight);
+  if (newVal === null || !newVal.trim()) return;
+  const parsed = parseFloat(newVal);
+  if (!parsed || parsed < 20 || parsed > 300) { showToast('Invalid weight'); return; }
+  entry.weight = parsed;
+  localStorage.setItem(WEIGHT_KEY, JSON.stringify(log));
+  if (sheetReady && entry.id) {
+    try {
+      await supaRequest('PATCH', '/rest/v1/weight_log?id=eq.'+entry.id, { weight_kg: parsed });
+      showToast('Weight updated ✓');
+    } catch(e) { showToast('Updated locally'); }
+  } else { showToast('Updated locally ✓'); }
+  renderWeightTab();
+}
+
+async function deleteWeightEntry(date) {
+  if (!confirm('Delete this weight entry?')) return;
+  const log = getWeightLog();
+  const entry = log.find(e => e.date === date);
+  const newLog = log.filter(e => e.date !== date);
+  localStorage.setItem(WEIGHT_KEY, JSON.stringify(newLog));
+  if (sheetReady && entry && entry.id) {
+    try {
+      await supaRequest('DELETE', '/rest/v1/weight_log?id=eq.'+entry.id);
+      showToast('Entry deleted ✓');
+    } catch(e) { showToast('Deleted locally'); }
+  } else { showToast('Deleted locally ✓'); }
+  renderWeightTab();
 }
 
 function drawWeightChart(log) {
